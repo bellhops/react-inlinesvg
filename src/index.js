@@ -1,7 +1,7 @@
 import React from 'react';
 import once from 'once';
 import httpplease from '@bellhops/httpplease';
-import ieXDomain from 'httpplease/plugins/oldiexdomain';
+import ieXDomain from '@bellhops/httpplease/plugins/oldiexdomain';
 
 import { shouldComponentUpdate } from './shouldComponentUpdate';
 

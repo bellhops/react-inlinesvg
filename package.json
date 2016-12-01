@@ -1,6 +1,6 @@
 {
-  "name": "react-inlinesvg",
-  "version": "0.5.4",
+  "name": "@bellhops/react-inlinesvg",
+  "version": "0.5.5",
   "description": "An SVG loader for React",
   "repository": {
     "type": "git",
@@ -19,7 +19,7 @@
   },
   "main": "./lib/index.js",
   "dependencies": {
-    "httpplease": "^0.16",
+    "@bellhops/httpplease": "^0.16",
     "once": "^1.4",
     "fbjs": "^0.8"
   },

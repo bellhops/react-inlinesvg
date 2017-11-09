@@ -3,7 +3,7 @@
   "parser": "babel-eslint",
   "env": {
     "browser": true,
-    "mocha": true
+    "jest": true
   },
   "globals": {
     "$": true
@@ -24,13 +24,8 @@
     "camelcase": 0,
     "comma-dangle": 0,
     "dot-notation": 1,
-    "indent": [
-      1,
-      2,
-      {
-        "SwitchCase": 1
-      }
-    ],
+    "indent": [1, 2, { "SwitchCase": 1 }],
+    "function-paren-newline": 0,
     "max-len": 0,
     "newline-per-chained-call": [
       1,
@@ -50,6 +45,7 @@
       1,
       "smart-tabs"
     ],
+    "no-multi-assign": 0,
     "no-multi-spaces": [
       1,
       {
@@ -124,11 +120,19 @@
     "import/no-extraneous-dependencies": [2, { "devDependencies": true }],
     // React
     "jsx-quotes": 1,
+    "react/forbid-prop-types": 0,
     "react/jsx-closing-bracket-location": [
       1,
-      "after-props"
+      "line-aligned"
     ],
-    "react/jsx-filename-extension": 0,
+    "react/jsx-first-prop-new-line": [
+      1,
+      "multiline"
+    ],
+    "react/jsx-indent": [
+      1,
+      2
+    ],
     "react/jsx-indent-props": [
       1,
       2
@@ -140,14 +144,21 @@
         "maximum": 4
       }
     ],
+    "react/jsx-no-target-blank": 0,
+    "react/no-array-index-key": 0,
+    "react/no-danger": 0,
     "react/no-did-mount-set-state": 1,
     "react/no-did-update-set-state": 1,
     "react/jsx-boolean-value": 0,
+    "react/jsx-filename-extension": 0,
     "react/jsx-no-duplicate-props": 1,
     "react/jsx-pascal-case": 1,
     "react/no-direct-mutation-state": 1,
+    "react/no-unused-prop-types": 1,
+    "react/no-unescaped-entities": 0,
     "react/prefer-stateless-function": 0,
     "react/prop-types": 2,
+    "react/require-default-props": 0,
     "react/sort-prop-types": 1,
     "react/sort-comp": [
       1,

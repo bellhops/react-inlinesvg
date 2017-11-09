@@ -1,9 +1,14 @@
 import React from 'react';
-import once from 'once';
+import PropTypes from 'prop-types';
 import httpplease from '@bellhops/httpplease';
 import ieXDomain from '@bellhops/httpplease/plugins/oldiexdomain';
 
-import { shouldComponentUpdate } from './shouldComponentUpdate';
+import {
+  configurationError,
+  isSupportedEnvironment,
+  randomString, uniquifySVGIDs,
+  unsupportedBrowserError,
+} from './utils';
 
 const http = httpplease.use(ieXDomain);
 
@@ -18,129 +23,7 @@ const Status = {
 const getRequestsByUrl = {};
 const loadedIcons = {};
 
-const createGetOrUseCacheForUrl = (url, callback) => {
-  if (loadedIcons[url]) {
-    const params = loadedIcons[url];
-
-    setTimeout(() => callback(params[0], params[1]), 0);
-  }
-
-  if (!getRequestsByUrl[url]) {
-    getRequestsByUrl[url] = [];
-
-    http.get(url, (err, res) => {
-      getRequestsByUrl[url].forEach(cb => {
-        loadedIcons[url] = [err, res];
-        cb(err, res);
-      });
-    });
-  }
-
-  getRequestsByUrl[url].push(callback);
-};
-
-const supportsInlineSVG = once(() => {
-  if (!document) {
-    return false;
-  }
-
-  const div = document.createElement('div');
-  div.innerHTML = '<svg />';
-  return div.firstChild && div.firstChild.namespaceURI === 'http://www.w3.org/2000/svg';
-});
-
-const isSupportedEnvironment = once(() =>
-  (
-    (typeof window !== 'undefined' && window !== null ? window.XMLHttpRequest : false) ||
-    (typeof window !== 'undefined' && window !== null ? window.XDomainRequest : false)
-  ) &&
-  supportsInlineSVG()
-);
-
-const uniquifyIDs = (() => {
-  const mkAttributePattern = attr => `(?:(?:\\s|\\:)${attr})`;
-
-  const idPattern = new RegExp(`(?:(${(mkAttributePattern('id'))})="([^"]+)")|(?:(${(mkAttributePattern('href'))}|${(mkAttributePattern('role'))}|${(mkAttributePattern('arcrole'))})="\\#([^"]+)")|(?:="url\\(\\#([^\\)]+)\\)")`, 'g');
-
-  return (svgText, svgID) => {
-    const uniquifyID = id => `${id}___${svgID}`;
-
-    return svgText.replace(idPattern, (m, p1, p2, p3, p4, p5) => { //eslint-disable-line consistent-return
-      if (p2) {
-        return `${p1}="${(uniquifyID(p2))}"`;
-      }
-      else if (p4) {
-        return `${p3}="#${(uniquifyID(p4))}"`;
-      }
-      else if (p5) {
-        return `="url(#${(uniquifyID(p5))})"`;
-      }
-    });
-  };
-})();
-
-const getHash = str => {
-  let chr;
-  let hash = 0;
-  let i;
-  let j;
-  let ref;
-
-  if (!str) {
-    return hash;
-  }
-
-  for (i = j = 0, ref = str.length; ref >= 0 ? j < ref : j > ref; i = ref >= 0 ? ++j : --j) {
-    chr = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + chr;
-    hash &= hash;
-  }
-
-  return hash;
-};
-
-class InlineSVGError extends Error {
-  constructor(message) {
-    super();
-
-    this.name = 'InlineSVGError';
-    this.isSupportedBrowser = true;
-    this.isConfigurationError = false;
-    this.isUnsupportedBrowserError = false;
-    this.message = message;
-
-    return this;
-  }
-}
-
-const createError = (message, attrs) => {
-  const err = new InlineSVGError(message);
-
-  Object.keys(attrs).forEach(k => {
-    err[k] = attrs[k];
-  });
-
-  return err;
-};
-
-const unsupportedBrowserError = message => {
-  let newMessage = message;
-
-  if (newMessage === null) {
-    newMessage = 'Unsupported Browser';
-  }
-
-  return createError(newMessage, {
-    isSupportedBrowser: false,
-    isUnsupportedBrowserError: true
-  });
-};
-
-const configurationError = message => createError(message, {
-  isConfigurationError: true
-});
-
-export default class InlineSVG extends React.Component {
+export default class InlineSVG extends React.PureComponent {
   constructor(props) {
     super(props);
 
@@ -148,32 +31,39 @@ export default class InlineSVG extends React.Component {
       status: Status.PENDING
     };
 
-    this.handleLoad = this.handleLoad.bind(this);
+    this.isActive = false;
   }
 
   static propTypes = {
-    cacheGetRequests: React.PropTypes.bool,
-    children: React.PropTypes.node,
-    className: React.PropTypes.string,
-    onError: React.PropTypes.func,
-    onLoad: React.PropTypes.func,
-    preloader: React.PropTypes.func,
-    src: React.PropTypes.string.isRequired,
-    supportTest: React.PropTypes.func,
-    uniquifyIDs: React.PropTypes.bool,
-    wrapper: React.PropTypes.func
+    cacheGetRequests: PropTypes.bool,
+    children: PropTypes.node,
+    className: PropTypes.string,
+    onError: PropTypes.func,
+    onLoad: PropTypes.func,
+    preloader: PropTypes.node,
+    src: PropTypes.string.isRequired,
+    style: PropTypes.object,
+    supportTest: PropTypes.func,
+    uniqueHash: PropTypes.string,
+    uniquifyIDs: PropTypes.bool,
+    wrapper: PropTypes.func
   };
 
   static defaultProps = {
-    wrapper: React.DOM.span,
+    cacheGetRequests: false,
+    onLoad: () => {},
     supportTest: isSupportedEnvironment,
     uniquifyIDs: true,
-    cacheGetRequests: false
+    uniqueHash: randomString(),
+    wrapper: React.createFactory('span'),
   };
 
-  shouldComponentUpdate = shouldComponentUpdate;
+  componentWillMount() {
+    this.isActive = true;
+  }
 
   componentDidMount() {
+    /* istanbul ignore else */
     if (this.state.status === Status.PENDING) {
       if (this.props.supportTest()) {
         if (this.props.src) {
@@ -189,49 +79,98 @@ export default class InlineSVG extends React.Component {
     }
   }
 
+  componentDidUpdate(prevProps) {
+    if (prevProps.src !== this.props.src) {
+      if (this.props.src) {
+        this.startLoad();
+      }
+      else {
+        this.fail(configurationError('Missing source'));
+      }
+    }
+  }
+
+  componentWillUnmount() {
+    this.isActive = false;
+  }
+
+  getFile(callback) {
+    const { cacheGetRequests, src } = this.props;
+
+    if (cacheGetRequests) {
+      if (loadedIcons[src]) {
+        const [err, res] = loadedIcons[src];
+
+        setTimeout(() => callback(err, res, true), 0);
+      }
+
+      if (!getRequestsByUrl[src]) {
+        getRequestsByUrl[src] = [callback];
+
+        http.get(src, (err, res) => {
+          getRequestsByUrl[src].forEach(cb => {
+            loadedIcons[src] = [err, res];
+            cb(err, res);
+          });
+        });
+      }
+    }
+    else {
+      http.get(src, (err, res) => {
+        callback(err, res);
+      });
+    }
+  }
+
   fail(error) {
     const status = error.isUnsupportedBrowserError ? Status.UNSUPPORTED : Status.FAILED;
 
-    this.setState({ status }, () => {
-      if (typeof this.props.onError === 'function') {
-        this.props.onError(error);
-      }
-    });
-  }
-
-  handleLoad(err, res) {
-    if (err) {
-      this.fail(err);
-      return;
+    /* istanbul ignore else */
+    if (this.isActive) {
+      this.setState({ status }, () => {
+        if (typeof this.props.onError === 'function') {
+          this.props.onError(error);
+        }
+      });
     }
-    this.setState({
-      loadedText: res.text,
-      status: Status.LOADED
-    }, () => (typeof this.props.onLoad === 'function' ? this.props.onLoad() : null));
   }
 
   startLoad() {
-    this.setState({
-      status: Status.LOADING
-    }, this.load);
+    /* istanbul ignore else */
+    if (this.isActive) {
+      this.setState({
+        status: Status.LOADING
+      }, this.load);
+    }
   }
 
   load() {
     const match = this.props.src.match(/data:image\/svg[^,]*?(;base64)?,(.*)/);
+
     if (match) {
       return this.handleLoad(null, {
         text: match[1] ? atob(match[2]) : decodeURIComponent(match[2])
       });
     }
-    if (this.props.cacheGetRequests) {
-      return createGetOrUseCacheForUrl(
-        this.props.src,
-        this.handleLoad
-      );
+
+    return this.getFile(this.handleLoad);
+  }
+
+  handleLoad = (err, res, isCached = false) => {
+    if (err) {
+      this.fail(err);
+      return;
     }
 
-    return http.get(this.props.src, this.handleLoad);
-  }
+    if (this.isActive) {
+      this.setState({
+        loadedText: res.text,
+        status: Status.LOADED
+      }, () => {
+        this.props.onLoad(this.props.src, isCached);
+      });
+    }
+  };
 
   getClassName() {
     let className = `isvg ${this.state.status}`;
@@ -244,8 +183,10 @@ export default class InlineSVG extends React.Component {
   }
 
   processSVG(svgText) {
-    if (this.props.uniquifyIDs) {
-      return uniquifyIDs(svgText, getHash(this.props.src));
+    const { uniquifyIDs, uniqueHash } = this.props;
+
+    if (uniquifyIDs) {
+      return uniquifySVGIDs(svgText, uniqueHash);
     }
 
     return svgText;
@@ -262,11 +203,22 @@ export default class InlineSVG extends React.Component {
   }
 
   render() {
-    return this.props.wrapper({
-      className: this.getClassName(),
-      dangerouslySetInnerHTML: this.state.loadedText ? {
+    let content;
+    let html;
+
+    if (this.state.loadedText) {
+      html = {
         __html: this.processSVG(this.state.loadedText)
-      } : undefined
-    }, this.renderContents());
+      };
+    }
+    else {
+      content = this.renderContents();
+    }
+
+    return this.props.wrapper({
+      style: this.props.style,
+      className: this.getClassName(),
+      dangerouslySetInnerHTML: html,
+    }, content);
   }
 }
